@@ -104,3 +104,63 @@ parallel -k -j 4 "
     samtools index {1}.sort.bam
 " ::: $(ls *.sam | perl -p -e 's/\.sam$//')
 ```
+
+# 表达量统计
+```bash
+mkdir -p ~/MC-LR/output/htseq
+cd ~/MC-LR/output/align
+# 将.bam 文件改为按 name 进行排序  
+parallel -j 4 "
+    samtools sort -n -@ 4 -o {1}.name_sorted.bam {1}.sort.bam
+" ::: $(ls *.sort.bam | perl -p -e 's/\.sort\.bam$//')
+# 进行表达量统计  
+parallel -j 4 "
+    htseq-count -s no -f bam -r name {1}.name_sorted.bam ../../annotation/Mus_GRCm38.gtf \
+      >../htseq/{1}.count  2>../htseq/{1}.log
+" ::: $(ls *.name_sorted.bam | perl -p -e 's/\.name_sorted\.bam$//')
+```
+
+# 合并表达矩阵
+```R
+rm(list=ls())
+setwd("~/MC-LR/output/htseq")
+# 得到文件样本编号
+files <- list.files(".", "*.count")
+f_lists <- list()
+for(i in files){
+    prefix = gsub("(_\\w+)?\\.count", "", i, perl=TRUE)
+    f_lists[[prefix]] = i
+}
+
+id_list <- names(f_lists)
+data <- list()
+count <- 0
+for(i in id_list){
+  count <- count + 1
+  a <- read.table(f_lists[[i]], sep="\t", col.names = c("gene_id",i))
+  data[[count]] <- a
+}
+# 合并文件
+data_merge <- data[[1]]
+for(i in seq(2, length(id_list))){
+    data_merge <- merge(data_merge, data[[i]],by="gene_id")
+}
+write.csv(data_merge, "merge.csv", quote = FALSE, row.names = FALSE)
+```
+
+# 差异表达分析
+## 分析前处理
+```R
+# 读取.csv 文件并创建数据框，将第一行作为列名，将第一列作为行名  
+dataframe <- read.csv("merge.csv", header=TRUE, row.names = 1)
+# 去除前5行描述行（不包括列名）
+countdata <- dataframe[-(1:5),]
+# 去除 ID （此处不用，基因 ID 带版本号时需要）
+row_names <- row.names(countdata)
+name_replace <- gsub("\\.\\w+","", row.names(countdata))
+row.names(countdata) <- name_replace
+# 去除低表达基因（基因在所有样本中的表达量总和不为0）
+countdata <- countdata[rowSums(countdata) > 0,]
+```
+
+## 差异分析
