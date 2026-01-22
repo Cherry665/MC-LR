@@ -49,3 +49,58 @@ multiqc .
 ```
 
 ## 去除接头和低质量序列
+
+```bash
+mkdir -p ~/MC-LR/output/trim
+cd ~/MC-LR/sequence
+parallel -j 4 "
+  java -jar ~/biosoft/Trimmomatic-0.38/trimmomatic-0.38.jar \
+    PE -phred33 {1} {= s/_1\.fastq\.gz/_2.fastq.gz/ =} \
+    ~/MC-LR/output/trim/{= s/_1\.fastq\.gz/_1_paired.fq.gz/ =} \
+    ~/MC-LR/output/trim/{= s/_1\.fastq\.gz/_1_unpaired.fq.gz/ =} \
+    ~/MC-LR/output/trim/{= s/_1\.fastq\.gz/_2_paired.fq.gz/ =} \
+    ~/MC-LR/output/trim/{= s/_1\.fastq\.gz/_2_unpaired.fq.gz/ =} \
+    ILLUMINACLIP:$HOME/biosoft/Trimmomatic-0.38/adapters/TruSeq3-PE-2.fa:2:30:10 \
+    LEADING:20 TRAILING:20 SLIDINGWINDOW:5:15 MINLEN:30 \
+" ::: $(ls *_1.fastq.gz)
+rm ../output/trim/*_unpaired.fq.gz
+```
+
+# 再次查看质量情况
+```bash
+mkdir -p ~/MC-LR/output/fastqc_trim
+cd ~/MC-LR/output/trim
+fastqc -t 4 -o ../fastqc_trim *.gz
+cd ../fastqc_trim
+multiqc .
+```
+
+# 序列比对
+## 下载索引
+```bash
+mkdir -p ~/MC-LR/genome/index
+cd ~/MC-LR/genome/index
+wget https://cloud.biohpc.swmed.edu/index.php/s/grcm38/download
+# 下载下来的 download 文件是.tar.gz 文件  
+tar -xzvf download
+```
+
+## 序列比对
+```bash
+mkdir -p ~/MC-LR/output/align
+cd ~/MC-LR/output/trim
+parallel -k -j 4 "
+    hisat2 -t -x ../../genome/index/grcm38/genome \
+      -1 {1}_1_paired.fq.gz -2 {1}_2_paired.fq.gz \
+      -S ../align/{1}.sam \
+      --summary-file ../align/{1}.summary \
+      2>../align/{1}.log
+" ::: $(ls *_1_paired.fq.gz | perl -p -e 's/_1_paired\.fq\.gz$//')
+
+# 将.sam 文件压缩为.bam 文件,输出排序后的.bam 文件和对应的索引文件  
+cd ~/MC-LR/output/align
+parallel -k -j 4 "
+    samtools sort -@ 4 {1}.sam > {1}.sort.bam
+    samtools index {1}.sort.bam
+" ::: $(ls *.sam | perl -p -e 's/\.sam$//')
+```
