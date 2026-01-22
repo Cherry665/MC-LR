@@ -164,3 +164,72 @@ countdata <- countdata[rowSums(countdata) > 0,]
 ```
 
 ## 差异分析
+```R
+# 安装加载所需要的 R 包
+# 下载小鼠基因的注释信息数据库 org.Mm.eg.db
+BiocManager::install("org.Mm.eg.db")
+# 加载包
+library(DESeq2)
+library(biomaRt)
+library(org.Mm.eg.db)
+library(clusterProfiler)
+# 构建对象
+sample_names <- c("SRR7753893", "SRR7753894", "SRR7753895", "SRR7753896")
+condition <- c("control", "control", "MC_LR", "MC_LR")
+coldata <- data.frame(row.names = sample_names, condition = condition)
+# 调整数据顺序
+countdata <- countdata[row.names(coldata)]
+# 构建 dds （design 后面的词需和 coldata 的列名相同）
+dds <- DESeqDataSetFromMatrix(countData = countdata, colData = coldata, design= ~ condition)
+# 设置因子水平的顺序，让 DESeq2 在比较时以 control 组作为对照组
+dds$condition <- factor(dds$condition, levels = c("control", "MC_LR"))
+# 对差异基因进行分析，并进行统计检验
+dds <- DESeq(dds)
+res <- results(dds)
+# 提取差异基因（使用论文阈值）
+# sig_genes <- subset(res, abs(log2FoldChange) > 1 & pvalue < 0.05)
+# 绘制火山图（利用ggplot2）
+library(ggplot2)
+plot_data <- as.data.frame(res)
+plot_data$group <- "NS" 
+plot_data$group[which(plot_data$pvalue < 0.05 & plot_data$log2FoldChange > 1)] <- "Up"
+plot_data$group[which(plot_data$pvalue < 0.05 & plot_data$log2FoldChange < -1)] <- "Down"
+p <- ggplot(plot_data, aes(x = log2FoldChange, y = -log10(pvalue))) +
+  geom_point(aes(color = group), alpha = 0.6) +
+  scale_color_manual(values = c("Up" = "red", "Down" = "blue", "NS" = "grey")) +
+  theme_minimal()
+# 保存图片为 pdf 文件
+ggsave("MC-LR差异表达分析.pdf", plot = p, width = 8, height = 6, dpi = 300)
+```
+
+# GO 富集分析（利用 ClusterProfiler）
+```R
+library(clusterProfiler)
+# 获取显著上调/下调基因的 Entrez ID
+up_genes <- rownames(res[res$log2FoldChange > 1 & res$pvalue < 0.05, ])
+up_genes_entrez <- bitr(up_genes, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Mm.eg.db")
+
+down_genes <- rownames(res[res$log2FoldChange < -1 & res$pvalue < 0.05, ])
+down_genes_entrez <- bitr(down_genes, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Mm.eg.db")
+# GO富集分析（关注“生物过程BP”）
+go_up <- enrichGO(gene = up_genes_entrez$ENTREZID,
+                  OrgDb = org.Mm.eg.db,
+                  keyType = 'ENTREZID',
+                  ont = "BP",
+                  pAdjustMethod = "BH",
+                  pvalueCutoff = 0.05,
+                  qvalueCutoff = 0.05,
+                  readable = TRUE)
+
+go_down <- enrichGO(gene = down_genes_entrez$ENTREZID,
+                  OrgDb = org.Mm.eg.db,
+                  keyType = 'ENTREZID',
+                  ont = "BP",
+                  pAdjustMethod = "BH",
+                  pvalueCutoff = 0.05,
+                  qvalueCutoff = 0.05,
+                  readable = TRUE)
+# 绘制条形图
+barplot(go_up, showCategory=8, title="GO Enrichment (Up-regulated)")
+barplot(go_down, showCategory=8, title="GO Enrichment (Down-regulated)")
+```
