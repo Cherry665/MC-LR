@@ -88,5 +88,15 @@ parallel -k -j 4 "
 cd ~/MC-LR/miRNA-Seq/output/align
 parallel -k -j 4 "
     samtools sort -@ 4 {1}.sam > {1}.sort.bam
+    samtools index {1}.sort.bam
 " ::: $(ls *.sam | perl -p -e 's/\.sam$//')
+# 统计 BAM 文件中比对到各个参考序列的 reads 数量  
+# 生成的.txt 文件每列的含义分别为：miRNA_ID  长度  比对到该序列的reads数  未比对到该序列的reads数
+parallel -k -j 4 "
+    samtools idxstats {1}.sort.bam > {1}.txt
+" ::: $(ls *.sort.bam | perl -p -e 's/\.sort\.bam$//')
+# 合并表达矩阵
+paste *.txt |cut -f 1,3,7,11,15 > mmu.txt
+# 加上列名
+echo -e "miRNA\tSRR7753897\tSRR7753898\tSRR7753899\tSRR7753900" | cat - mmu.txt > mmu.mature.txt
 ```  
