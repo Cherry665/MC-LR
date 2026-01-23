@@ -13,6 +13,7 @@ md5sum SRR7753897.fastq.gz SRR7753898.fastq.gz SRR7753899.fastq.gz SRR7753900.fa
 
 # miRNA参考序列下载
 从[miRBase](https://www.mirbase.org)下载所有物种成熟 miRNA 序列(与文章中相同使用了 release 21 版本)，提取小鼠的 miRNA 序列，利用`bowtie`构建比对索引  
+mature.fa: 成熟miRNA序列，用于定量；hairpin.fa: 前体序列，用于新miRNA预测  
 
 ```bash
 mkdir -p ~/MC-LR/miRNA-Seq/miRBase
@@ -45,13 +46,21 @@ multiqc .
 
 ## 去除接头和低质量序列
 miRNA 的一般用`cutadapt`,同时去掉 reads 中的接头，低质量的 reads 以及过长过短的 reads  
+--quality-base=33：指定Phred质量分数编码为33  
+--minimum-length=18 和 --maximum-length=30：修剪后只保留18-30nt长度的序列  
+-q 20：将碱基质量阈值设为20  
+--discard-untrimmed：丢弃所有未检测到接头的读段  
 
 ```bash
 cd ~/MC-LR/miRNA-Seq/sequence
 mkdir -p ../output/adapter
 for i in $(ls *.fastq.gz);do
-    cutadapt -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCA \
-    --quality-base 33 -m 10 -q 20 --discard-untrimmed \
+    cutadapt -a TGGAATTCTCGGGTGCCAAGG \
+    --quality-base=33 \
+    --minimum-length=18 \
+    --maximum-length=30 \
+    -q 20 \
+    --discard-untrimmed \
     -o ../output/adapter/${i}  ${i}
 done
 ```
@@ -64,3 +73,11 @@ fastqc -t 4 -o ../fastqc_adapter *.gz
 cd ../fastqc_adapter
 multiqc .
 ```
+
+# 序列比对
+```bash
+mkdir -p -p ~/MC-LR/miRNA-Seq/output/align
+cd ~/MC-LR/miRNA-Seq/output/adapter
+parallel -k -j 4 "
+    bowtie -n 1 -m 1 --best --strata ../miRBase/mmu_mature.fa {1}.fq  -S s01_mature.sam -p 24
+```  
