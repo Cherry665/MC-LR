@@ -39,8 +39,9 @@ cd ~/MC-LR/miRNA-Seq/output/fastqc
 multiqc .
 ```
 可以看出测序质量还是可以的，但 3' 端存在接头序列需要去除  
-· 所有的测序文件的质量  
 [所有的测序文件的质量](./images/所有测序文件质量.png)
+[平均质量值的read的数量](./images/平均质量值的read的数量.png)
+[接头情况](./images/接头情况.png)
 ## 去除接头和低质量序列
 ```bash
 
