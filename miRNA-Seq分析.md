@@ -12,12 +12,12 @@ md5sum SRR7753897.fastq.gz SRR7753898.fastq.gz SRR7753899.fastq.gz SRR7753900.fa
 ```
 
 # miRNA参考序列下载
-从[miRBase](https://www.mirbase.org)下载所有物种成熟 miRNA 序列，提取小鼠的 miRNA 序列，利用`bowtie`构建比对索引  
+从[miRBase](https://www.mirbase.org)下载所有物种成熟 miRNA 序列(与文章中相同使用了 release 21 版本)，提取小鼠的 miRNA 序列，利用`bowtie`构建比对索引  
 
 ```bash
 mkdir -p ~/MC-LR/miRNA-Seq/miRBase
 cd ~/MC-LR/miRNA-Seq/miRBase
-wget https://www.mirbase.org/download/mature.fa
+wget https://www.mirbase.org/download_version_files/21/mature.fa
 # 提取小鼠的 miRNA 序列，并完成 U → T 转换
 # （在 miRBase 数据库中使用 U 来代表尿嘧啶，以反映miRNA作为RNA分子的原始化学状态，但后续分析软件只使用 A, T, C, G, N 这五个字符）
 grep -A 1 '^>mmu-' mature.fa | sed '/^[^>]/ y/Uu/Tt/' > mmu_mature.fa
@@ -42,7 +42,25 @@ multiqc .
 [所有的测序文件的质量](./images/所有测序文件质量.png)  
 [平均质量值的read的数量](./images/平均质量值的read的数量.png)  
 [接头情况](./images/接头情况.png)  
-## 去除接头和低质量序列
-```bash
 
+## 去除接头和低质量序列
+miRNA 的一般用`cutadapt`,同时去掉 reads 中的接头，低质量的 reads 以及过长过短的 reads  
+
+```bash
+cd ~/MC-LR/miRNA-Seq/sequence
+mkdir -p ../output/adapter
+for i in $(ls *.fastq.gz);do
+    cutadapt -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCA \
+    --quality-base 33 -m 10 -q 20 --discard-untrimmed \
+    -o ../output/adapter/${i}  ${i}
+done
+```
+
+## 再次查看质量情况
+```bash
+cd ~/MC-LR/miRNA-Seq/output/adapter
+mkdir -p ../fastqc_adapter
+fastqc -t 4 -o ../fastqc_adapter *.gz
+cd ../fastqc_adapter
+multiqc .
 ```
