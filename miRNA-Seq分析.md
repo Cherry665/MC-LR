@@ -25,8 +25,7 @@ grep -A 1 '^>mmu-' mature.fa | sed '/^[^>]/ y/Uu/Tt/' > mmu_mature.fa
 # 构建比对索引
 # （生成4个核心索引文件和6个反向索引文件）
 bowtie-build mmu_mature.fa mmu_mature
-mkdir ./index
-mv *.ebwt ./index
+rm mature.fa
 ```
 
 # 质量控制
@@ -75,9 +74,19 @@ multiqc .
 ```
 
 # 序列比对
+-n：允许错配的数量  
+-m：允许比对到参考序列的最多条数  
+--best --strata：生成的sam文件只显示最佳的 map 结果  
+-S：输出结果文件为 sam 格式  
 ```bash
-mkdir -p -p ~/MC-LR/miRNA-Seq/output/align
+mkdir -p ~/MC-LR/miRNA-Seq/output/align
 cd ~/MC-LR/miRNA-Seq/output/adapter
 parallel -k -j 4 "
-    bowtie -n 1 -m 1 --best --strata ../miRBase/mmu_mature.fa {1}.fq  -S s01_mature.sam -p 24
+    bowtie -n 2 -m 10 --best --strata  -x ../../miRBase/mmu_mature {1}.fastq.gz  -S ../align/{1}.sam 2>../align/{1}.log
+" ::: $(ls *.fastq.gz | perl -p -e 's/\.fastq\.gz$//')
+# 转换为 BAM 格式
+cd ~/MC-LR/miRNA-Seq/output/align
+parallel -k -j 4 "
+    samtools sort -@ 4 {1}.sam > {1}.sort.bam
+" ::: $(ls *.sam | perl -p -e 's/\.sam$//')
 ```  
