@@ -28,4 +28,13 @@ mkdir ./index
 mv *.ebwt ./index
 ```
 
-# 去除接头和低质量序列
+# 质量控制
+## 质量评估
+```bash
+cd ~/MC-LR/miRNA-Seq/sequence
+mkdir -p ../output/fastqc
+fastqc -t 4 -o ../output/fastqc *.gz
+# 合并
+cd ~/MC-LR/miRNA-Seq/output/fastqc
+multiqc .
+```
