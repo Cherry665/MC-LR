@@ -27,7 +27,7 @@ cat Mus_GRCm38.raw.fa | perl -n -e 'if(m/^>(.+?)(?:\s|$)/){ print ">$1\n";}else{
 rm Mus_GRCm38.raw.fa
 ```
 
-获取注释信息  
+## 获取注释信息  
 
 ```bash
 mkdir -p ~/MC-LR/annotation
@@ -207,29 +207,35 @@ ggsave("MC-LR差异表达分析.pdf", plot = p, width = 8, height = 6, dpi = 300
 library(clusterProfiler)
 # 获取显著上调/下调基因的 Entrez ID
 up_genes <- rownames(res[res$log2FoldChange > 1 & res$pvalue < 0.05, ])
-up_genes_entrez <- bitr(up_genes, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Mm.eg.db")
 
 down_genes <- rownames(res[res$log2FoldChange < -1 & res$pvalue < 0.05, ])
-down_genes_entrez <- bitr(down_genes, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Mm.eg.db")
 # GO富集分析（关注“生物过程BP”）
-go_up <- enrichGO(gene = up_genes_entrez$ENTREZID,
+go_up <- enrichGO(gene = up_genes,
                   OrgDb = org.Mm.eg.db,
-                  keyType = 'ENTREZID',
+                  keyType = 'ENSEMBL',
                   ont = "BP",
                   pAdjustMethod = "BH",
                   pvalueCutoff = 0.05,
                   qvalueCutoff = 0.05,
                   readable = TRUE)
 
-go_down <- enrichGO(gene = down_genes_entrez$ENTREZID,
+go_down <- enrichGO(gene = down_genes,
                   OrgDb = org.Mm.eg.db,
-                  keyType = 'ENTREZID',
+                  keyType = 'ENSEMBL',
                   ont = "BP",
                   pAdjustMethod = "BH",
                   pvalueCutoff = 0.05,
                   qvalueCutoff = 0.05,
                   readable = TRUE)
 # 绘制条形图
-barplot(go_up, showCategory=8, title="GO Enrichment (Up-regulated)")
-barplot(go_down, showCategory=8, title="GO Enrichment (Down-regulated)")
+a <- barplot(go_up, showCategory=8, title="GO Enrichment (Up-regulated)")
+b <- barplot(go_down, showCategory=8, title="GO Enrichment (Down-regulated)")
+# 保存
+ggsave("MC-LR上调基因 GO 富集分析.pdf", plot = a, width = 8, height = 6, dpi = 300)
+ggsave("MC-LR下调基因 GO 富集分析.pdf", plot = b, width = 8, height = 6, dpi = 300)
+
+# 保存数据
+write.table(res, "./DE_result.tsv", sep="\t", quote = FALSE)
+write.table(up_genes, "./up_genes.tsv", sep="\t", quote = FALSE)
+write.table(down_genes, "./down_genes.tsv", sep="\t", quote = FALSE)
 ```
