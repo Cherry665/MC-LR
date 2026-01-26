@@ -102,8 +102,45 @@ echo -e "miRNA\tSRR7753897\tSRR7753898\tSRR7753899\tSRR7753900" | cat - mmu.txt 
 ```  
 
 # 差异表达分析
-无生物学重复使用 DEGseq，有生物学重复使用 DESeq2  
+无生物学重复使用`DEGseq`，有生物学重复使用`DESeq2`(以下使用的是`DESeq2`)  
 
 ```R
-
+# 读取.txt 文件并创建数据框，将第一行作为列名，将第一列作为行名
+dataframe <- read.table("mmu.mature.txt", header=TRUE, row.names = 1)
+# 去除低表达基因（基因在所有样本中的表达量总和不为0）
+countdata <- dataframe[rowSums(dataframe) > 0,]
+# 安装加载所需要的 R 包
+# 下载小鼠基因的注释信息数据库 org.Mm.eg.db
+BiocManager::install("org.Mm.eg.db")
+# 加载包
+library(DESeq2)
+library(biomaRt)
+library(org.Mm.eg.db)
+# 构建对象
+sample_names <- c("SRR7753897", "SRR7753898", "SRR7753899", "SRR7753900")
+condition <- c("control", "control", "MC_LR", "MC_LR")
+coldata <- data.frame(row.names = sample_names, condition = condition)
+# 调整数据顺序
+countdata <- countdata[row.names(coldata)]
+# 构建 dds （design 后面的词需和 coldata 的列名相同）
+dds <- DESeqDataSetFromMatrix(countData = countdata, colData = coldata, design= ~ condition)
+# 设置因子水平的顺序，让 DESeq2 在比较时以 control 组作为对照组
+dds$condition <- factor(dds$condition, levels = c("control", "MC_LR"))
+# 对差异基因进行分析，并进行统计检验
+dds <- DESeq(dds)
+res <- results(dds)
+# 提取差异基因（使用论文阈值）
+# sig_genes <- subset(res, abs(log2FoldChange) > 1 & pvalue < 0.05)
+# 绘制火山图（利用ggplot2）
+library(ggplot2)
+plot_data <- as.data.frame(res)
+plot_data$group <- "NS" 
+plot_data$group[which(plot_data$pvalue < 0.05 & plot_data$log2FoldChange > 1)] <- "Up"
+plot_data$group[which(plot_data$pvalue < 0.05 & plot_data$log2FoldChange < -1)] <- "Down"
+p <- ggplot(plot_data, aes(x = log2FoldChange, y = -log10(pvalue))) +
+  geom_point(aes(color = group), alpha = 0.6) +
+  scale_color_manual(values = c("Up" = "red", "Down" = "blue", "NS" = "grey")) +
+  theme_minimal()
+# 保存图片为 pdf 文件
+ggsave("miRNA差异表达分析.pdf", plot = p, width = 8, height = 6, dpi = 300)
 ```
