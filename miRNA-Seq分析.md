@@ -110,12 +110,9 @@ dataframe <- read.table("mmu.mature.txt", header=TRUE, row.names = 1)
 # 去除低表达基因（基因在所有样本中的表达量总和不为0）
 countdata <- dataframe[rowSums(dataframe) > 0,]
 # 安装加载所需要的 R 包
-# 下载小鼠基因的注释信息数据库 org.Mm.eg.db
-BiocManager::install("org.Mm.eg.db")
 # 加载包
 library(DESeq2)
 library(biomaRt)
-library(org.Mm.eg.db)
 # 构建对象
 sample_names <- c("SRR7753897", "SRR7753898", "SRR7753899", "SRR7753900")
 condition <- c("control", "control", "MC_LR", "MC_LR")
