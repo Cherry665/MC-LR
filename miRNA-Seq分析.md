@@ -19,13 +19,22 @@ mature.fa: 成熟miRNA序列，用于定量；hairpin.fa: 前体序列，用于�
 mkdir -p ~/MC-LR/miRNA-Seq/miRBase
 cd ~/MC-LR/miRNA-Seq/miRBase
 wget https://www.mirbase.org/download_version_files/21/mature.fa
+wget https://www.mirbase.org/download_version_files/21/hairpin.fa
 # 提取小鼠的 miRNA 序列，并完成 U → T 转换
 # （在 miRBase 数据库中使用 U 来代表尿嘧啶，以反映miRNA作为RNA分子的原始化学状态，但后续分析软件只使用 A, T, C, G, N 这五个字符）
-grep -A 1 '^>mmu-' mature.fa | sed '/^[^>]/ y/Uu/Tt/' > mmu_mature.fa
+# mature.fa
+grep '^>mmu-' mature.fa | sed 's/^>//' > mmu_mature_names.txt
+faops some mature.fa mmu_mature_names.txt mmu_mature.fa
+sed -i '/^[^>]/ y/Uu/Tt/' mmu_mature.fa
+# hairpin.fa
+grep '^>mmu-' hairpin.fa | sed 's/^>//' > mmu_hairpin_names.txt
+faops some hairpin.fa mmu_hairpin_names.txt mmu_hairpin.fa
+sed -i '/^[^>]/ y/Uu/Tt/' mmu_hairpin.fa
 # 构建比对索引
 # （生成4个核心索引文件和6个反向索引文件）
 bowtie-build mmu_mature.fa mmu_mature
-rm mature.fa
+bowtie-build mmu_hairpin.fa mmu_hairpin
+rm mature.fa hairpin.fa
 ```
 
 # 质量控制
@@ -74,18 +83,20 @@ multiqc .
 ```
 
 # 序列比对
+## mature miRNA
 -n：允许错配的数量  
 -m：允许比对到参考序列的最多条数  
 --best --strata：生成的sam文件只显示最佳的 map 结果  
 -S：输出结果文件为 sam 格式  
+
 ```bash
-mkdir -p ~/MC-LR/miRNA-Seq/output/align
+mkdir -p ~/MC-LR/miRNA-Seq/output/align/mature
 cd ~/MC-LR/miRNA-Seq/output/adapter
 parallel -k -j 4 "
-    bowtie -n 2 -m 10 --best --strata  -x ../../miRBase/mmu_mature {1}.fastq.gz  -S ../align/{1}.sam 2>../align/{1}.log
+    bowtie -n 2 -m 10 --best --strata  -x ../../miRBase/mmu_mature {1}.fastq.gz  -S ../align/mature/{1}.sam 2>../align/mature/{1}.log
 " ::: $(ls *.fastq.gz | perl -p -e 's/\.fastq\.gz$//')
 # 转换为 BAM 格式
-cd ~/MC-LR/miRNA-Seq/output/align
+cd ~/MC-LR/miRNA-Seq/output/align/mature
 parallel -k -j 4 "
     samtools sort -@ 4 {1}.sam > {1}.sort.bam
     samtools index {1}.sort.bam
@@ -100,6 +111,30 @@ paste *.txt |cut -f 1,3,7,11,15 > mmu.txt
 # 加上列名
 echo -e "miRNA\tSRR7753897\tSRR7753898\tSRR7753899\tSRR7753900" | cat - mmu.txt > mmu.mature.txt
 ```  
+
+## hairpin miRNA
+```bash
+mkdir -p ~/MC-LR/miRNA-Seq/output/align/hairpin
+cd ~/MC-LR/miRNA-Seq/output/adapter
+parallel -k -j 4 "
+    bowtie -n 2 -m 10 --best --strata  -x ../../miRBase/mmu_hairpin {1}.fastq.gz  -S ../align/hairpin/{1}.sam 2>../align/hairpin/{1}.log
+" ::: $(ls *.fastq.gz | perl -p -e 's/\.fastq\.gz$//')
+# 转换为 BAM 格式
+cd ~/MC-LR/miRNA-Seq/output/align/hairpin
+parallel -k -j 4 "
+    samtools sort -@ 4 {1}.sam > {1}.sort.bam
+    samtools index {1}.sort.bam
+" ::: $(ls *.sam | perl -p -e 's/\.sam$//')
+# 统计 BAM 文件中比对到各个参考序列的 reads 数量  
+# 生成的.txt 文件每列的含义分别为：miRNA_ID  长度  比对到该序列的reads数  未比对到该序列的reads数
+parallel -k -j 4 "
+    samtools idxstats {1}.sort.bam > {1}.txt
+" ::: $(ls *.sort.bam | perl -p -e 's/\.sort\.bam$//')
+# 合并表达矩阵
+paste *.txt |cut -f 1,3,7,11,15 > mmu.txt
+# 加上列名
+echo -e "miRNA\tSRR7753897\tSRR7753898\tSRR7753899\tSRR7753900" | cat - mmu.txt > mmu.hairpin.txt
+```
 
 # 差异表达分析
 无生物学重复使用`DEGseq`，有生物学重复使用`DESeq2`(以下使用的是`DESeq2`)  
@@ -130,11 +165,18 @@ res <- results(dds)
 # sig_genes <- subset(res, abs(log2FoldChange) > 1 & pvalue < 0.05)
 # 绘制火山图（利用ggplot2）
 library(ggplot2)
+log2FC_threshold <- 1
+pvalue_threshold <- 0.05
+log10p_threshold <- -log10(pvalue_threshold)
 plot_data <- as.data.frame(res)
 plot_data$group <- "NS" 
 plot_data$group[which(plot_data$pvalue < 0.05 & plot_data$log2FoldChange > 1)] <- "Up"
 plot_data$group[which(plot_data$pvalue < 0.05 & plot_data$log2FoldChange < -1)] <- "Down"
 p <- ggplot(plot_data, aes(x = log2FoldChange, y = -log10(pvalue))) +
+  geom_vline(xintercept = c(-log2FC_threshold, log2FC_threshold), 
+             linetype = "dashed", color = "grey", alpha = 0.5, linewidth = 0.7) +
+  geom_hline(yintercept = log10p_threshold, 
+             linetype = "dashed", color = "grey", alpha = 0.5, linewidth = 0.7) +
   geom_point(aes(color = group), alpha = 0.6) +
   scale_color_manual(values = c("Up" = "red", "Down" = "blue", "NS" = "grey")) +
   theme_minimal()
