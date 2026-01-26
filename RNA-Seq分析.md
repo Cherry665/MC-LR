@@ -172,7 +172,6 @@ BiocManager::install("org.Mm.eg.db")
 library(DESeq2)
 library(biomaRt)
 library(org.Mm.eg.db)
-library(clusterProfiler)
 # 构建对象
 sample_names <- c("SRR7753893", "SRR7753894", "SRR7753895", "SRR7753896")
 condition <- c("control", "control", "MC_LR", "MC_LR")
