@@ -100,3 +100,10 @@ paste *.txt |cut -f 1,3,7,11,15 > mmu.txt
 # 加上列名
 echo -e "miRNA\tSRR7753897\tSRR7753898\tSRR7753899\tSRR7753900" | cat - mmu.txt > mmu.mature.txt
 ```  
+
+# 差异表达分析
+无生物学重复使用 DEGseq，有生物学重复使用 DESeq2  
+
+```R
+
+```
