@@ -170,8 +170,6 @@ countdata <- countdata[rowSums(countdata) > 0,]
 BiocManager::install("org.Mm.eg.db")
 # 加载包
 library(DESeq2)
-library(biomaRt)
-library(org.Mm.eg.db)
 # 构建对象
 sample_names <- c("SRR7753893", "SRR7753894", "SRR7753895", "SRR7753896")
 condition <- c("control", "control", "MC_LR", "MC_LR")
