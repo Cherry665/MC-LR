@@ -204,7 +204,7 @@ ggsave("MC-LR差异表达分析.pdf", plot = p, width = 8, height = 6, dpi = 300
 # GO 富集分析（利用 ClusterProfiler）
 ```R
 library(clusterProfiler)
-# 获取显著上调/下调基因的 Entrez ID
+# 获取显著上调/下调基因
 up_genes <- rownames(res[res$log2FoldChange > 1 & res$pvalue < 0.05, ])
 
 down_genes <- rownames(res[res$log2FoldChange < -1 & res$pvalue < 0.05, ])
