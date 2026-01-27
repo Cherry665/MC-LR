@@ -19,22 +19,16 @@ mature.fa: 成熟miRNA序列，用于定量；hairpin.fa: 前体序列，用于�
 mkdir -p ~/MC-LR/miRNA-Seq/miRBase
 cd ~/MC-LR/miRNA-Seq/miRBase
 wget https://www.mirbase.org/download_version_files/21/mature.fa
-wget https://www.mirbase.org/download_version_files/21/hairpin.fa
 # 提取小鼠的 miRNA 序列，并完成 U → T 转换
 # （在 miRBase 数据库中使用 U 来代表尿嘧啶，以反映miRNA作为RNA分子的原始化学状态，但后续分析软件只使用 A, T, C, G, N 这五个字符）
 # mature.fa
 grep '^>mmu-' mature.fa | sed 's/^>//' > mmu_mature_names.txt
 faops some mature.fa mmu_mature_names.txt mmu_mature.fa
 sed -i '/^[^>]/ y/Uu/Tt/' mmu_mature.fa
-# hairpin.fa
-grep '^>mmu-' hairpin.fa | sed 's/^>//' > mmu_hairpin_names.txt
-faops some hairpin.fa mmu_hairpin_names.txt mmu_hairpin.fa
-sed -i '/^[^>]/ y/Uu/Tt/' mmu_hairpin.fa
 # 构建比对索引
 # （生成4个核心索引文件和6个反向索引文件）
 bowtie-build mmu_mature.fa mmu_mature
-bowtie-build mmu_hairpin.fa mmu_hairpin
-rm mature.fa hairpin.fa
+rm mature.fa
 ```
 
 # 质量控制
@@ -90,13 +84,13 @@ multiqc .
 -S：输出结果文件为 sam 格式  
 
 ```bash
-mkdir -p ~/MC-LR/miRNA-Seq/output/align/mature
+mkdir -p ~/MC-LR/miRNA-Seq/output/align
 cd ~/MC-LR/miRNA-Seq/output/adapter
 parallel -k -j 4 "
-    bowtie -n 2 -m 10 --best --strata  -x ../../miRBase/mmu_mature {1}.fastq.gz  -S ../align/mature/{1}.sam 2>../align/mature/{1}.log
+    bowtie -n 2 -m 10 --best --strata  -x ../../miRBase/mmu_mature {1}.fastq.gz  -S ../align/{1}.sam 2>../align/{1}.log
 " ::: $(ls *.fastq.gz | perl -p -e 's/\.fastq\.gz$//')
 # 转换为 BAM 格式
-cd ~/MC-LR/miRNA-Seq/output/align/mature
+cd ~/MC-LR/miRNA-Seq/output/align
 parallel -k -j 4 "
     samtools sort -@ 4 {1}.sam > {1}.sort.bam
     samtools index {1}.sort.bam
@@ -112,42 +106,16 @@ paste *.txt |cut -f 1,3,7,11,15 > mmu.txt
 echo -e "miRNA\tSRR7753897\tSRR7753898\tSRR7753899\tSRR7753900" | cat - mmu.txt > mmu.mature.txt
 ```  
 
-## hairpin miRNA
-```bash
-mkdir -p ~/MC-LR/miRNA-Seq/output/align/hairpin
-cd ~/MC-LR/miRNA-Seq/output/adapter
-parallel -k -j 4 "
-    bowtie -n 2 -m 10 --best --strata  -x ../../miRBase/mmu_hairpin {1}.fastq.gz  -S ../align/hairpin/{1}.sam 2>../align/hairpin/{1}.log
-" ::: $(ls *.fastq.gz | perl -p -e 's/\.fastq\.gz$//')
-# 转换为 BAM 格式
-cd ~/MC-LR/miRNA-Seq/output/align/hairpin
-parallel -k -j 4 "
-    samtools sort -@ 4 {1}.sam > {1}.sort.bam
-    samtools index {1}.sort.bam
-" ::: $(ls *.sam | perl -p -e 's/\.sam$//')
-# 统计 BAM 文件中比对到各个参考序列的 reads 数量  
-# 生成的.txt 文件每列的含义分别为：miRNA_ID  长度  比对到该序列的reads数  未比对到该序列的reads数
-parallel -k -j 4 "
-    samtools idxstats {1}.sort.bam > {1}.txt
-" ::: $(ls *.sort.bam | perl -p -e 's/\.sort\.bam$//')
-# 合并表达矩阵
-paste *.txt |cut -f 1,3,7,11,15 > mmu.txt
-# 加上列名
-echo -e "miRNA\tSRR7753897\tSRR7753898\tSRR7753899\tSRR7753900" | cat - mmu.txt > mmu.hairpin.txt
-```
-
 # 差异表达分析
-无生物学重复使用`DEGseq`，有生物学重复使用`DESeq2`(以下使用的是`DESeq2`)  
-
+## DESeq2
 ```R
 # 读取.txt 文件并创建数据框，将第一行作为列名，将第一列作为行名
 dataframe <- read.table("mmu.mature.txt", header=TRUE, row.names = 1)
-# 去除低表达基因（基因在所有样本中的表达量总和不为0）
+# 去除低表达序列（基因在所有样本中的表达量总和不为0）
 countdata <- dataframe[rowSums(dataframe) > 0,]
 # 安装加载所需要的 R 包
 # 加载包
 library(DESeq2)
-library(biomaRt)
 # 构建对象
 sample_names <- c("SRR7753897", "SRR7753898", "SRR7753899", "SRR7753900")
 condition <- c("control", "control", "MC_LR", "MC_LR")
@@ -158,13 +126,27 @@ countdata <- countdata[row.names(coldata)]
 dds <- DESeqDataSetFromMatrix(countData = countdata, colData = coldata, design= ~ condition)
 # 设置因子水平的顺序，让 DESeq2 在比较时以 control 组作为对照组
 dds$condition <- factor(dds$condition, levels = c("control", "MC_LR"))
-# 对差异基因进行分析，并进行统计检验
+# 对差异表达序列进行分析，并进行统计检验
 dds <- DESeq(dds)
 res <- results(dds)
-# 提取差异基因（使用论文阈值）
-# sig_genes <- subset(res, abs(log2FoldChange) > 1 & pvalue < 0.05)
-# 绘制火山图（利用ggplot2）
+# 提取差异表达序列（使用论文阈值）
+up <- rownames(res[res$log2FoldChange > 1 & res$pvalue < 0.05, ])
+down <- rownames(res[res$log2FoldChange < -1 & res$pvalue < 0.05, ])
+# 保存数据
+write.table(res, "./miRNA_DE_result.tsv", sep="\t", quote = FALSE)
+write.table(up, "./miRNA_DE_up.tsv", sep="\t", quote = FALSE)
+write.table(down, "./miRNA_DE_down.tsv", sep="\t", quote = FALSE)
+```
+## edgeR
+```R
+library(edgeR)
+
+```
+
+# 可视化（利用ggplot2）
+```R
 library(ggplot2)
+# 绘制火山图  
 log2FC_threshold <- 1
 pvalue_threshold <- 0.05
 log10p_threshold <- -log10(pvalue_threshold)
@@ -181,5 +163,126 @@ p <- ggplot(plot_data, aes(x = log2FoldChange, y = -log10(pvalue))) +
   scale_color_manual(values = c("Up" = "red", "Down" = "blue", "NS" = "grey")) +
   theme_minimal()
 # 保存图片为 pdf 文件
-ggsave("miRNA差异表达分析.pdf", plot = p, width = 8, height = 6, dpi = 300)
+ggsave("miRNA差异表达分析DESeq2.pdf", plot = p, width = 8, height = 6, dpi = 300)
 ```
+
+# 靶基因预测
+## 下载miRanda
+```bash
+conda install bioconda::miranda
+```
+
+## 使用 miRanda 预测靶基因
+```bash
+# 激活conda环境  
+conda activate  
+
+# 获取上调/下调序列的.fa 文件  
+mkdir -p ~/MC-LR/miRNA-Seq/output/miRanda
+cd ~/MC-LR/miRNA-Seq/miRBase
+faops some mmu_mature.fa ../output/align/miRNA_DE_up.tsv ../output/miRanda/mmu_up.fa
+faops some mmu_mature.fa ../output/align/miRNA_DE_down.tsv ../output/miRanda/mmu_down.fa
+```
+3'UTR 序列文件是一个专门包含基因3'非翻译区 DNA 序列的文本文件。绝大多数 miRNA 通过与靶基因 mRNA 的 3'UTR 区域碱基互补配对，从而抑制翻译或导致 mRNA 降解  
+
+```R
+# 下载小鼠的 3’UTR 序列文件
+cd ~/MC-LR/miRNA-Seq/output/miRanda
+library(biomaRt)
+BiocManager::install("org.Mm.eg.db")
+library(org.Mm.eg.db)
+## 建立与 Ensembl 数据库的连接，指定使用 Ensembl 的“Mart”服务，并选择小鼠基因数据集
+ensembl = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+## 获得小鼠基因转录本ID
+ensembl_ID <- toTable(org.Mm.egENSEMBLTRANS)
+## 获得 3’UTR 序列文件
+utr <- getSequence(id=ensembl_ID$trans_id, type="ensembl_transcript_id", seqType='3utr', mart=ensembl)
+## 获得 3’UTR 序列的.fa文件
+## utr 中第1列为序列，第2列为转录本ID
+outfile <- file("mmu-3utr.fa", "w")
+for (i in 1:nrow(utr)) {
+  if(grepl("Sequence unavailable", utr[i, 1])) {
+    next
+  }
+  h = paste(c(">", utr[i,2]), collapse="")
+  writeLines(h, outfile)
+  writeLines(utr[i,1], outfile)
+}
+close(outfile)
+```
+```bash
+# 靶基因预测
+# -sc：指定序列比对打分的阈值，小于该阈值的结合位点会被过滤，默认为140
+## 获取表达上调 miRNA 的靶基因转录本ID
+miranda mmu_up.fa mmu-3utr.fa -out up_target.txt
+grep '^>' up_target.txt | grep -v '>>' > up_result.txt
+cut -f 2 up_result.txt > up_genes.txt
+## 获取表达下调 miRNA 的靶基因转录本ID
+miranda mmu_down.fa mmu-3utr.fa -out down_target.txt
+grep '^>' down_target.txt | grep -v '>>' > down_result.txt
+cut -f 2 down_result.txt > down_genes.txt
+```
+
+# GO 富集分析
+```R
+library(org.Mm.eg.db)
+library(clusterProfiler)
+# 将 Ensembl 转录本ID转换为 ENTREZID
+# 可能会出现同一个基因产生多个不同的转录本或一个转录本关联到多个可能的基因上的情况（比例少不做去除）
+up_targetname= read.csv("up_genes.txt",head=F)
+up_gene.df <- bitr(up_targetname$V1, fromType = "ENSEMBLTRANS",
+                toType = "ENTREZID",
+                OrgDb = org.Mm.eg.db)
+
+down_targetname= read.csv("down_genes.txt",head=F)
+down_gene.df <- bitr(down_targetname$V1, fromType = "ENSEMBLTRANS",
+                toType = "ENTREZID",
+                OrgDb = org.Mm.eg.db)
+# GO 富集分析
+up_ego <- enrichGO(gene = up_gene.df$ENTREZID,
+                OrgDb = org.Mm.eg.db,
+                keyType = 'ENTREZID',
+                ont = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff = 0.01,
+                qvalueCutoff = 0.05)
+
+down_ego <- enrichGO(gene = down_gene.df$ENTREZID,
+                OrgDb = org.Mm.eg.db,
+                keyType = 'ENTREZID',
+                ont = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff = 0.01,
+                qvalueCutoff = 0.05)
+# 可视化
+library(ggplot2)
+a <- barplot(up_ego, showCategory=8, title="GO Enrichment (Up-regulated)")
+B <- barplot(down_ego, showCategory=8, title="GO Enrichment (Down-regulated)")
+
+```
+
+
+plot_data <- down_ego@result %>% 
+  mutate(log10_pval = -log10(pvalue)) %>%
+  
+  arrange(pvalue) %>%
+  head(10) %>% 
+  mutate(Description = fct_reorder(Description, log10_pval))
+p <- ggplot(plot_data, aes(x = log10_pval, y = Description)) +
+  geom_bar(stat = "identity", width = 0.7, fill = "#4C72B0") +
+  labs
+(
+    x = expression(-log[10]("pvalue")),
+    y = NULL,
+    title = "GO Enrichment (Down-regulated)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(), 
+    axis.line.x = element_line(color = "black"), 
+    plot.title = element_text(hjust = 0.5, face = "bold") 
+  )
+
+print(p)
+
