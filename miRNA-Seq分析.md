@@ -77,7 +77,6 @@ multiqc .
 ```
 
 # 序列比对
-## mature miRNA
 -n：允许错配的数量  
 -m：允许比对到参考序列的最多条数  
 --best --strata：生成的sam文件只显示最佳的 map 结果  
