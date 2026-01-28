@@ -1,0 +1,18 @@
+#!/usr/bin/Rscript
+logFC_threshold <- 1
+PValue_threshold <- 0.05
+log10p_threshold <- -log10(PValue_threshold)
+plot_data <- as.data.frame(et)
+plot_data$group <- "NS"
+plot_data$group[which(plot_data$PValue < 0.05 & plot_data$logFC > 1)] <- "Up"
+plot_data$group[which(plot_data$PValue < 0.05 & plot_data$logFC < -1)] <- "Down"
+p <- ggplot(plot_data, aes(x = logFC, y = -log10(PValue))) +
+  geom_vline(xintercept = c(-logFC_threshold, logFC_threshold),
+             linetype = "dashed", color = "grey", alpha = 0.5, linewidth = 0.7) +
+  geom_hline(yintercept = log10p_threshold,
+             linetype = "dashed", color = "grey", alpha = 0.5, linewidth = 0.7) +
+  geom_point(aes(color = group), alpha = 0.6) +
+  scale_color_manual(values = c("Up" = "red", "Down" = "blue", "NS" = "grey")) +
+  theme_minimal()
+  # 保存图片为 pdf 文件
+ggsave("miRNA差异表达分析edgeR.pdf", plot = p, width = 8, height = 6, dpi = 300)
