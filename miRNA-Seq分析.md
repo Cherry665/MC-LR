@@ -256,7 +256,34 @@ down_ego <- enrichGO(gene = down_gene.df$ENTREZID,
                 qvalueCutoff = 0.05)
 # 可视化
 library(ggplot2)
-a <- barplot(up_ego, showCategory=8, title="GO Enrichment (Up-regulated)")
-B <- barplot(down_ego, showCategory=8, title="GO Enrichment (Down-regulated)")
+up_plot_data <- up_ego@result %>%
+  arrange(pvalue) %>%
+  head(8) %>%
+  mutate(log10_pval = -log10(pvalue), 
+         Description = factor(Description, levels = rev(Description)))
+a <- ggplot(up_plot_data, aes(x = log10_pval, y = Description)) +
+  geom_bar(stat = "identity", fill = "#f72222", width = 0.4) +
+  labs(title = " BP GO Enrichment (Up-regulated)",
+       x = expression(-log[10]("p-value")),
+       y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        panel.grid.major.y = element_blank())
 
+down_plot_data <- down_ego@result %>%
+  arrange(pvalue) %>%
+  head(8) %>%
+  mutate(log10_pval = -log10(pvalue), 
+         Description = factor(Description, levels = rev(Description)))
+b <- ggplot(down_plot_data, aes(x = log10_pval, y = Description)) +
+  geom_bar(stat = "identity", fill = "#230de7", width = 0.4) +
+  labs(title = " BP GO Enrichment (Down-regulated)",
+       x = expression(-log[10]("p-value")),
+       y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        panel.grid.major.y = element_blank())
+# 保存
+ggsave("MC-LR处理后表达上调miRNA靶基因 GO 富集分析.pdf", plot = a, width = 12, height = 6, dpi = 300)
+ggsave("MC-LR处理后表达下调miRNA靶基因 GO 富集分析.pdf", plot = b, width = , height = 6, dpi = 300)
 ```
