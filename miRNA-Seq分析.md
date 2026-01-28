@@ -238,13 +238,13 @@ down_targetname= read.csv("down_genes.txt",head=F)
 down_gene.df <- bitr(down_targetname$V1, fromType = "ENSEMBLTRANS",
                 toType = "ENTREZID",
                 OrgDb = org.Mm.eg.db)
-# GO 富集分析
+# GO 富集分析（关注“生物过程BP”）
 up_ego <- enrichGO(gene = up_gene.df$ENTREZID,
                 OrgDb = org.Mm.eg.db,
                 keyType = 'ENTREZID',
                 ont = "BP",
                 pAdjustMethod = "BH",
-                pvalueCutoff = 0.01,
+                pvalueCutoff = 0.05,
                 qvalueCutoff = 0.05)
 
 down_ego <- enrichGO(gene = down_gene.df$ENTREZID,
@@ -252,7 +252,7 @@ down_ego <- enrichGO(gene = down_gene.df$ENTREZID,
                 keyType = 'ENTREZID',
                 ont = "BP",
                 pAdjustMethod = "BH",
-                pvalueCutoff = 0.01,
+                pvalueCutoff = 0.05,
                 qvalueCutoff = 0.05)
 # 可视化
 library(ggplot2)
@@ -260,29 +260,3 @@ a <- barplot(up_ego, showCategory=8, title="GO Enrichment (Up-regulated)")
 B <- barplot(down_ego, showCategory=8, title="GO Enrichment (Down-regulated)")
 
 ```
-
-
-plot_data <- down_ego@result %>% 
-  mutate(log10_pval = -log10(pvalue)) %>%
-  
-  arrange(pvalue) %>%
-  head(10) %>% 
-  mutate(Description = fct_reorder(Description, log10_pval))
-p <- ggplot(plot_data, aes(x = log10_pval, y = Description)) +
-  geom_bar(stat = "identity", width = 0.7, fill = "#4C72B0") +
-  labs
-(
-    x = expression(-log[10]("pvalue")),
-    y = NULL,
-    title = "GO Enrichment (Down-regulated)"
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor = element_blank(), 
-    axis.line.x = element_line(color = "black"), 
-    plot.title = element_text(hjust = 0.5, face = "bold") 
-  )
-
-print(p)
-
