@@ -137,13 +137,8 @@ write.table(res, "./miRNA_DE_result.tsv", sep="\t", quote = FALSE)
 write.table(up, "./miRNA_DE_up.tsv", sep="\t", quote = FALSE)
 write.table(down, "./miRNA_DE_down.tsv", sep="\t", quote = FALSE)
 ```
-## edgeR
-```R
-library(edgeR)
 
-```
-
-# 可视化（利用ggplot2）
+## 可视化（利用ggplot2）
 ```R
 library(ggplot2)
 # 绘制火山图  
@@ -254,7 +249,10 @@ down_ego <- enrichGO(gene = down_gene.df$ENTREZID,
                 pAdjustMethod = "BH",
                 pvalueCutoff = 0.05,
                 qvalueCutoff = 0.05)
-# 可视化
+```
+
+## 可视化
+```R
 library(ggplot2)
 up_plot_data <- up_ego@result %>%
   arrange(pvalue) %>%
