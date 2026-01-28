@@ -225,8 +225,33 @@ go_down <- enrichGO(gene = down_genes,
                   qvalueCutoff = 0.05,
                   readable = TRUE)
 # 绘制条形图
-a <- barplot(go_up, showCategory=8, title="GO Enrichment (Up-regulated)")
-b <- barplot(go_down, showCategory=8, title="GO Enrichment (Down-regulated)")
+up_plot_data <- go_up@result %>%
+  arrange(pvalue) %>%
+  head(8) %>%
+  mutate(log10_pval = -log10(pvalue), 
+         Description = factor(Description, levels = rev(Description)))
+a <- ggplot(up_plot_data, aes(x = log10_pval, y = Description)) +
+  geom_bar(stat = "identity", fill = "#f72222", width = 0.4) +
+  labs(title = "GO Enrichment (Up-regulated)",
+       x = expression(-log[10]("p-value")),
+       y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        panel.grid.major.y = element_blank())
+
+down_plot_data <- go_down@result %>%
+  arrange(pvalue) %>%
+  head(8) %>%
+  mutate(log10_pval = -log10(pvalue), 
+         Description = factor(Description, levels = rev(Description)))
+b <- ggplot(down_plot_data, aes(x = log10_pval, y = Description)) +
+  geom_bar(stat = "identity", fill = "#230de7", width = 0.4) +
+  labs(title = "GO Enrichment (Down-regulated)",
+       x = expression(-log[10]("p-value")),
+       y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        panel.grid.major.y = element_blank())
 # 保存
 ggsave("MC-LR上调基因 GO 富集分析.pdf", plot = a, width = 8, height = 6, dpi = 300)
 ggsave("MC-LR下调基因 GO 富集分析.pdf", plot = b, width = 8, height = 6, dpi = 300)
