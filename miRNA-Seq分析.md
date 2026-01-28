@@ -285,5 +285,5 @@ b <- ggplot(down_plot_data, aes(x = log10_pval, y = Description)) +
         panel.grid.major.y = element_blank())
 # 保存
 ggsave("MC-LR处理后表达上调miRNA靶基因 GO 富集分析.pdf", plot = a, width = 12, height = 6, dpi = 300)
-ggsave("MC-LR处理后表达下调miRNA靶基因 GO 富集分析.pdf", plot = b, width = , height = 6, dpi = 300)
+ggsave("MC-LR处理后表达下调miRNA靶基因 GO 富集分析.pdf", plot = b, width = 12, height = 6, dpi = 300)
 ```
