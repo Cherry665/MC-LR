@@ -106,7 +106,7 @@ echo -e "miRNA\tSRR7753897\tSRR7753898\tSRR7753899\tSRR7753900" | cat - mmu.txt 
 ```  
 
 # 差异表达分析
-## DESeq2
+## DESeq2（有至少2个生物学重复）
 ```R
 # 读取.txt 文件并创建数据框，将第一行作为列名，将第一列作为行名
 dataframe <- read.table("mmu.mature.txt", header=TRUE, row.names = 1)
@@ -137,7 +137,36 @@ write.table(up, "./miRNA_DE_up.tsv", sep="\t", quote = FALSE)
 write.table(down, "./miRNA_DE_down.tsv", sep="\t", quote = FALSE)
 ```
 
-## 可视化（利用ggplot2）
+## edgeR（无生物学重复）（本篇论文没用）
+```R
+library(edgeR)
+data <- read.table("mmu.mature.txt", header = TRUE, row.names = 1)
+# 创建分组信息
+groups <- c("IL6", "control")
+# 构建DGEList
+dge <- DGEList(counts = data, group = groups)
+# 过滤低表达基因
+keep <- rowSums(cpm(dge)>1) >= 1
+dge <- dge[keep, , keep.lib.sizes=FALSE]  # 分别表示行选择（使用keep向量筛选基因），列选择（不变），第三维选择（不保持原始文库大小）
+# 样本标准化
+dge <- calcNormFactors(dge)
+# 差异表达分析
+# 根据经验设定BCV值：如果是人类数据, 且实验做的很好(无过多的其他因素影响), 设置为0.4, 如果是遗传上相似的模式物种, 设置为0.1, 如果是技术重复, 那么设置为0.01
+bcv <- 0.1
+et <- exactTest(dge, dispersion = bcv ^ 2)
+# 提取差异表达序列（使用论文阈值）
+et_table <- et$table
+# 计算 FDR 值
+# et_table$FDR <- p.adjust(et_table$PValue, method = "BH") 
+up <- rownames(et_table[et_table$logFC > 1 & et_table$PValue < 0.05, ])
+down <- rownames(et_table[et_table$logFC < -1 & et_table$PValue < 0.05, ])
+# 保存数据
+write.table(et_table, "./miRNA_edgeR_result.tsv", sep="\t", quote = FALSE)
+write.table(up, "./miRNA_edgeR_up.tsv", sep="\t", quote = FALSE)
+write.table(down, "./miRNA_edgeR_down.tsv", sep="\t", quote = FALSE)
+```
+
+## 可视化（利用ggplot2）(根据 DESeq2 的结果，edgeR 需有所修改)
 ```R
 library(ggplot2)
 # 绘制火山图  
