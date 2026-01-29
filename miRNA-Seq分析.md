@@ -131,6 +131,9 @@ res <- results(dds)
 # 提取差异表达序列（使用论文阈值）
 up <- rownames(res[res$log2FoldChange > 1 & res$pvalue < 0.05, ])
 down <- rownames(res[res$log2FoldChange < -1 & res$pvalue < 0.05, ])
+# 当使用 padj<0.05 作为显著的标准时，可以用 which 处理 NA 值
+up <- rownames(res)[which(res$log2FoldChange > 0.5 & res$padj < 0.05)]
+down <- rownames(res)[which(res$log2FoldChange < -0.5 & res$padj < 0.05)]
 # 保存数据
 write.table(res, "./miRNA_DE_result.tsv", sep="\t", quote = FALSE)
 write.table(up, "./miRNA_DE_up.tsv", sep="\t", quote = FALSE)
