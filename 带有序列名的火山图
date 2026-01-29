@@ -1,0 +1,28 @@
+#!/usr/bin/Rscript
+library(ggplot2)
+library(ggrepel)
+log2FC_threshold <- 0.5
+padj_threshold <- 0.05
+log10p_threshold <- -log10(padj_threshold)
+plot_data <- as.data.frame(res)
+plot_data$gene <- rownames(plot_data)
+plot_data$group <- "NS" 
+plot_data$group[which(plot_data$padj < padj_threshold & plot_data$log2FoldChange > log2FC_threshold)] <- "Up"
+plot_data$group[which(plot_data$padj < padj_threshold & plot_data$log2FoldChange < -log2FC_threshold)] <- "Down"
+plot_data$label <- ifelse(plot_data$group %in% c("Up", "Down"), plot_data$gene, "")
+p <- ggplot(plot_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_vline(xintercept = c(-log2FC_threshold, log2FC_threshold), 
+             linetype = "dashed", color = "grey", alpha = 0.5, linewidth = 0.7) +
+  geom_hline(yintercept = log10p_threshold, 
+             linetype = "dashed", color = "grey", alpha = 0.5, linewidth = 0.7) +
+  geom_point(aes(color = group), alpha = 0.6) +
+  geom_text_repel(
+    aes(label = label),
+    size = 3,
+    max.overlaps = Inf,
+    segment.color = "grey50",
+    segment.size = 0.2,
+    show.legend = FALSE
+  ) +
+  scale_color_manual(values = c("Up" = "red", "Down" = "blue", "NS" = "grey")) +
+  theme_minimal()
