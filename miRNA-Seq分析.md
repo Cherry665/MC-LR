@@ -76,7 +76,7 @@ cd ../fastqc_adapter
 multiqc .
 ```
 
-# 序列比对
+# mapping（映射）
 -n：允许错配的数量  
 -m：允许比对到参考序列的最多条数  
 --best --strata：生成的sam文件只显示最佳的 map 结果  
@@ -211,9 +211,12 @@ faops some mmu_mature.fa ../output/align/miRNA_DE_down.tsv ../output/miRanda/mmu
 ```
 3'UTR 序列文件是一个专门包含基因3'非翻译区 DNA 序列的文本文件。绝大多数 miRNA 通过与靶基因 mRNA 的 3'UTR 区域碱基互补配对，从而抑制翻译或导致 mRNA 降解  
 
+```bash
+cd ~/MC-LR/miRNA-Seq/output/miRanda
+```
+
 ```R
 # 下载小鼠的 3’UTR 序列文件
-cd ~/MC-LR/miRNA-Seq/output/miRanda
 library(biomaRt)
 BiocManager::install("org.Mm.eg.db")
 library(org.Mm.eg.db)
